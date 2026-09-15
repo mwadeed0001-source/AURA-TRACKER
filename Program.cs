@@ -26,10 +26,15 @@ var app = builder.Build();
 
 // 4. Swagger UI enable karna
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+  
+
+// Swagger ko hamesha enable rakhein taake production par bhi 404 na aaye
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Aura Tracker API V1");
+    c.RoutePrefix = string.Empty; // Yeh karne se app kholte hi direct Swagger page open ho jayega!
+});
 
 // ❌ app.UseHttpsRedirection(); ko yahan se bilkul hata diya gaya hai 
 // kyunke Railway khud SSL/HTTPS handle karta hai.

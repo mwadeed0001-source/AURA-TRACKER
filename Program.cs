@@ -30,7 +30,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(); // Yeh browser mein Swagger page open karega
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthorization();
 

@@ -1,37 +1,42 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. CORS Policy Configuration (Flutter Web ke liye taake Failed to fetch ka error na aaye)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        builder => builder
-            .AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader());
-});
-// Add services to the container.
-builder.Services.AddControllers();
-
-// 1. Swagger/OpenAPI services add karein
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddCors(options => {
-    options.AddPolicy("AllowAll", builder => {
-        builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
-// Aur app.UseRouting() ya app.MapControllers() se pehle yeh ho:
+// 2. Add services to the container.
+builder.Services.AddControllers();
+
+// 3. Swagger / OpenAPI services
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 2. Development environment mein Swagger UI enable karein
-if (app.Environment.IsDevelopment())
+// 4. Development environment mein Swagger UI enable karna
+if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI(); // Yeh browser mein Swagger page open karega
 }
 
-//app.UseHttpsRedirection();
+// 5. Middleware Pipeline (Yahan tarteeb bohot ahem hai)
+app.UseHttpsRedirection();
+
+// CORS ko routing aur controllers se pehle hona lazmi hai
 app.UseCors("AllowAll");
+
 app.UseAuthorization();
 
 app.MapControllers();

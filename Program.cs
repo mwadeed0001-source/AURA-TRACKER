@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. CORS Policy Configuration (Flutter Web ke liye taake Failed to fetch ka error na aaye)
+// 1. CORS Policy Configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -24,16 +24,17 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 4. Development environment mein Swagger UI enable karna
+// 4. Swagger UI enable karna
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); // Yeh browser mein Swagger page open karega
+    app.UseSwaggerUI();
 }
 
-// 5. Middleware Pipeline (Yahan tarteeb bohot ahem hai)
-app.UseHttpsRedirection();
+// ❌ app.UseHttpsRedirection(); ko yahan se bilkul hata diya gaya hai 
+// kyunke Railway khud SSL/HTTPS handle karta hai.
 
+// 5. Middleware Pipeline
 // CORS ko routing aur controllers se pehle hona lazmi hai
 app.UseCors("AllowAll");
 

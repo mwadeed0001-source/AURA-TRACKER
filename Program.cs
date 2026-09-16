@@ -15,8 +15,14 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 2. Add services to the container.
 builder.Services.AddControllers();
+
+// 💡 SMART PORT FIX: Agar Railway par hai toh PORT uthaye, warna local par default chalne de
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
 // 3. Swagger / OpenAPI services
 builder.Services.AddEndpointsApiExplorer();

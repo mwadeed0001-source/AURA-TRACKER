@@ -30,11 +30,10 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 4. Swagger UI enable karna
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
-  
+// 🛠️ DEVELOPER EXCEPTION PAGE: Production par bhi exact C# error dekhne ke liye taake pata chale 500 kyun aa raha hai
+app.UseDeveloperExceptionPage();
 
-// Swagger ko hamesha enable rakhein taake production par bhi 404 na aaye
+// 4. Swagger UI enable karna
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -42,8 +41,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = string.Empty; // Yeh karne se app kholte hi direct Swagger page open ho jayega!
 });
 
-// ❌ app.UseHttpsRedirection(); ko yahan se bilkul hata diya gaya hai 
-// kyunke Railway khud SSL/HTTPS handle karta hai.
+// ❌ app.UseHttpsRedirection(); ko yahan se bilkul hata diya gaya hai kyunke Railway khud SSL/HTTPS handle karta hai.
 
 // 5. Middleware Pipeline
 // CORS ko routing aur controllers se pehle hona lazmi hai

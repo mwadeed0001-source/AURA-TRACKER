@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Dapper;
-using Oracle.ManagedDataAccess.Client;
+using Npgsql;
 using System.Net;
 using System.Net.Mail;
 
@@ -11,12 +11,13 @@ namespace TrackingApp.Controllers
     public class SessionController : ControllerBase
     {
         private readonly IConfiguration _configuration;
-        private readonly string _connectionString;
+        private readonly string? _connectionString;
 
         public SessionController(IConfiguration configuration)
         {
             _configuration = configuration;
-            _connectionString = configuration.GetConnectionString("OracleDbConnection");
+            _connectionString = configuration.GetConnectionString("PostgreSqlConn")
+                                ?? Environment.GetEnvironmentVariable("DATABASE_URL");
         }
 
         // 1. Send OTP to Email
@@ -26,40 +27,68 @@ namespace TrackingApp.Controllers
             if (request == null || string.IsNullOrEmpty(request.Email))
                 return BadRequest(new { success = false, message = "Email is required." });
 
+            if (string.IsNullOrEmpty(_connectionString))
+                return StatusCode(500, new { success = false, message = "Database connection string is missing." });
+
             string generatedOtp = new Random().Next(100000, 999999).ToString();
 
-            using (var db = new OracleConnection(_connectionString))
+            try
             {
-                var existingUser = await db.ExecuteScalarAsync<int>(
-                    "SELECT COUNT(1) FROM app_users WHERE email = :Email", new { Email = request.Email });
+                using (var db = new NpgsqlConnection(_connectionString))
+                {
+                    await db.OpenAsync();
 
-                if (existingUser == 0)
-                {
-                    await db.ExecuteAsync(
-                        "INSERT INTO app_users (full_name, email, otp_code, is_verified) VALUES (:FullName, :Email, :OtpCode, 0)",
-                        new { FullName = "Pending User", Email = request.Email, OtpCode = generatedOtp });
+                    // Table auto-create ensure karne ke liye
+                    await db.ExecuteAsync(@"
+                        CREATE TABLE IF NOT EXISTS app_users (
+                            id SERIAL PRIMARY KEY,
+                            full_name VARCHAR(100),
+                            email VARCHAR(150) UNIQUE,
+                            otp_code VARCHAR(10),
+                            is_verified INT DEFAULT 0
+                        );");
+
+                    var existingUser = await db.ExecuteScalarAsync<int>(
+                        "SELECT COUNT(1) FROM app_users WHERE email = @Email", new { Email = request.Email });
+
+                    if (existingUser == 0)
+                    {
+                        await db.ExecuteAsync(
+                            "INSERT INTO app_users (full_name, email, otp_code, is_verified) VALUES (@FullName, @Email, @OtpCode, 0)",
+                            new { FullName = "Pending User", Email = request.Email, OtpCode = generatedOtp });
+                    }
+                    else
+                    {
+                        await db.ExecuteAsync(
+                            "UPDATE app_users SET otp_code = @OtpCode WHERE email = @Email",
+                            new { OtpCode = generatedOtp, Email = request.Email });
+                    }
                 }
-                else
-                {
-                    await db.ExecuteAsync(
-                        "UPDATE app_users SET otp_code = :OtpCode WHERE email = :Email",
-                        new { OtpCode = generatedOtp, Email = request.Email });
-                }
+            }
+            catch (Exception ex) // ✅ Yahan dbEx ki jagah ex kar diya hai
+            {
+                return StatusCode(500, new { success = false, message = "Database Error: " + ex.Message });
             }
 
             try
             {
                 var emailSettings = _configuration.GetSection("EmailSettings");
-                var smtpClient = new SmtpClient(emailSettings["Server"])
+                string server = emailSettings["Server"] ?? "smtp.gmail.com";
+                int port = int.TryParse(emailSettings["Port"], out var p) ? p : 587;
+                string senderEmail = emailSettings["SenderEmail"] ?? "";
+                string senderName = emailSettings["SenderName"] ?? "Aura Tracker";
+                string password = emailSettings["Password"] ?? "";
+
+                var smtpClient = new SmtpClient(server)
                 {
-                    Port = int.Parse(emailSettings["Port"]),
-                    Credentials = new NetworkCredential(emailSettings["SenderEmail"], emailSettings["Password"]),
+                    Port = port,
+                    Credentials = new NetworkCredential(senderEmail, password),
                     EnableSsl = true,
                 };
 
                 var mailMessage = new MailMessage
                 {
-                    From = new MailAddress(emailSettings["SenderEmail"], emailSettings["SenderName"]),
+                    From = new MailAddress(senderEmail, senderName),
                     Subject = "Your Safety Tracker Verification Code",
                     Body = $"Your verification code is: <b>{generatedOtp}</b>",
                     IsBodyHtml = true,
@@ -83,17 +112,29 @@ namespace TrackingApp.Controllers
             if (request == null || string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.OtpCode))
                 return BadRequest(new { success = false, message = "Email and OTP are required." });
 
-            using (var db = new OracleConnection(_connectionString))
+            if (string.IsNullOrEmpty(_connectionString))
+                return StatusCode(500, new { success = false, message = "Database connection string is missing." });
+
+            try
             {
-                var storedOtp = await db.ExecuteScalarAsync<string>(
-                    "SELECT otp_code FROM app_users WHERE email = :Email", new { Email = request.Email });
+                using (var db = new NpgsqlConnection(_connectionString))
+                {
+                    await db.OpenAsync();
 
-                if (storedOtp == null || storedOtp != request.OtpCode)
-                    return BadRequest(new { success = false, message = "Invalid OTP code." });
+                    var storedOtp = await db.ExecuteScalarAsync<string>(
+                        "SELECT otp_code FROM app_users WHERE email = @Email", new { Email = request.Email });
 
-                await db.ExecuteAsync(
-                    "UPDATE app_users SET is_verified = 1 WHERE email = :Email",
-                    new { Email = request.Email });
+                    if (storedOtp == null || storedOtp != request.OtpCode)
+                        return BadRequest(new { success = false, message = "Invalid OTP code." });
+
+                    await db.ExecuteAsync(
+                        "UPDATE app_users SET is_verified = 1 WHERE email = @Email",
+                        new { Email = request.Email });
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = "Database Error: " + ex.Message });
             }
 
             return Ok(new { success = true, message = "OTP verified successfully. Access granted!" });
@@ -102,12 +143,12 @@ namespace TrackingApp.Controllers
 
     public class OtpRequestDto
     {
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
     }
 
     public class VerifyOtpDto
     {
-        public string Email { get; set; }
-        public string OtpCode { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string OtpCode { get; set; } = string.Empty;
     }
 }

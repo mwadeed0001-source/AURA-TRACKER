@@ -1,0 +1,9 @@
+final String baseUrl = "https://127.0.0.1:7014/api/Session";
+  final String baseUrl = "http://10.0.2.2:51475/api/Session"; /
+mwadeed0001@gmail.com
+flutter run -d chrome
+
+"ConnectionStrings": {
+  "OracleDbConnection": "Data Source=localhost:1521/XE;User Id=SYSTEM;Password=Oracle123;"
+
+postgresql://postgres:LHOctUSjHWLBakZbcjxgVzHSuUJyRQFg@postgres.railway.internal:5432/railway

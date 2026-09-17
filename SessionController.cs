@@ -16,7 +16,7 @@ namespace TrackingApp.Controllers
         public SessionController(IConfiguration configuration)
         {
             _configuration = configuration;
-            _connectionString = configuration.GetConnectionString("PostgreSqlConn")
+            _connectionString = configuration.GetConnectionString("postgrelsqlconn")
                                 ?? Environment.GetEnvironmentVariable("DATABASE_URL");
         }
 

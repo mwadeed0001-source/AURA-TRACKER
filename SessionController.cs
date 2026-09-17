@@ -65,9 +65,10 @@ namespace TrackingApp.Controllers
                     }
                 }
             }
-            catch (Exception ex) // ✅ Yahan dbEx ki jagah ex kar diya hai
+            catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = "Database Error: " + ex.Message });
+                // ✅ Full stack trace return hoga
+                return StatusCode(500, new { success = false, message = "Database Error: " + ex.ToString() });
             }
 
             try
@@ -99,7 +100,8 @@ namespace TrackingApp.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = "Failed to send email: " + ex.Message });
+                // ✅ Full stack trace return hoga
+                return StatusCode(500, new { success = false, message = "Failed to send email: " + ex.ToString() });
             }
 
             return Ok(new { success = true, message = "OTP sent successfully to email." });
@@ -134,7 +136,8 @@ namespace TrackingApp.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = "Database Error: " + ex.Message });
+                // ✅ Full stack trace return hoga
+                return StatusCode(500, new { success = false, message = "Database Error: " + ex.ToString() });
             }
 
             return Ok(new { success = true, message = "OTP verified successfully. Access granted!" });

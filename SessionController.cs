@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using Npgsql;
-using System.Net;
-using System.Net.Mail;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 
 namespace TrackingApp.Controllers
 {
@@ -20,7 +22,7 @@ namespace TrackingApp.Controllers
                                 ?? Environment.GetEnvironmentVariable("DATABASE_URL");
         }
 
-        // 1. Send OTP to Email
+        // 1. Send OTP to Email (Using Brevo HTTP API)
         [HttpPost("send-otp")]
         public async Task<IActionResult> SendOtp([FromBody] OtpRequestDto request)
         {
@@ -67,40 +69,40 @@ namespace TrackingApp.Controllers
             }
             catch (Exception ex)
             {
-                // ✅ Full stack trace return hoga
                 return StatusCode(500, new { success = false, message = "Database Error: " + ex.ToString() });
             }
 
             try
             {
                 var emailSettings = _configuration.GetSection("EmailSettings");
-                string server = emailSettings["Server"] ?? "smtp.gmail.com";
-                int port = int.TryParse(emailSettings["Port"], out var p) ? p : 587;
-                string senderEmail = emailSettings["SenderEmail"] ?? "";
-                string senderName = emailSettings["SenderName"] ?? "Aura Tracker";
-                string password = emailSettings["Password"] ?? "";
+                string apiKey = emailSettings["ApiKey"] ?? "";
+                string senderEmail = emailSettings["SenderEmail"] ?? "auratrack0001@gmail.com";
+                string senderName = emailSettings["SenderName"] ?? "Aura_Tracker";
 
-                var smtpClient = new SmtpClient(server)
+                using (var httpClient = new HttpClient())
                 {
-                    Port = port,
-                    Credentials = new NetworkCredential(senderEmail, password),
-                    EnableSsl = true,
-                };
+                    httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
 
-                var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(senderEmail, senderName),
-                    Subject = "Your Safety Tracker Verification Code",
-                    Body = $"Your verification code is: <b>{generatedOtp}</b>",
-                    IsBodyHtml = true,
-                };
-                mailMessage.To.Add(request.Email);
+                    var payload = new
+                    {
+                        sender = new { name = senderName, email = senderEmail },
+                        to = new[] { new { email = request.Email } },
+                        subject = "Your Safety Tracker Verification Code",
+                        htmlContent = $"<p>Your verification code is: <b>{generatedOtp}</b></p>"
+                    };
 
-                await smtpClient.SendMailAsync(mailMessage);
+                    var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                    var response = await httpClient.PostAsync("https://api.brevo.com/v3/smtp/email", jsonContent);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorResponse = await response.Content.ReadAsStringAsync();
+                        return StatusCode(500, new { success = false, message = $"Email sending failed: {errorResponse}" });
+                    }
+                }
             }
             catch (Exception ex)
             {
-                // ✅ Full stack trace return hoga
                 return StatusCode(500, new { success = false, message = "Failed to send email: " + ex.ToString() });
             }
 
@@ -136,7 +138,6 @@ namespace TrackingApp.Controllers
             }
             catch (Exception ex)
             {
-                // ✅ Full stack trace return hoga
                 return StatusCode(500, new { success = false, message = "Database Error: " + ex.ToString() });
             }
 
